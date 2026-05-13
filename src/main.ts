@@ -25,4 +25,7 @@ app.use(ElementPlus)
 app.use(createPinia())
 app.use(router)
 
+// 将router挂载到全局属性，方便在组件外使用
+app.config.globalProperties.$router = router
+
 app.mount('#app') // 把vue的实例gua zai

@@ -6,7 +6,18 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('../views/HomeView.vue')
+      component: () => import('../views/HomeView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('../views/LoginView.vue')
+    },
+    {
+      path: '/echarts',
+      name: 'echarts',
+      component: () => import('../views/EchartsView.vue')
     },
 
     {
@@ -20,6 +31,15 @@ const router = createRouter({
     //   component: () => import('../views/AboutView.vue')
     // }
   ]
+})
+
+router.beforeEach((to, from, next) => {
+  const isLoggedIn = localStorage.getItem('isLoggedIn')
+  if (to.meta.requiresAuth && !isLoggedIn) {
+    next({ name: 'login' })
+  } else {
+    next()
+  }
 })
 
 export default router
