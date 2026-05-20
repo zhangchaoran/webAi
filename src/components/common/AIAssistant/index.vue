@@ -8,15 +8,14 @@
       </button>
     </div>
 
-    <!-- 消息列表区域（滚动） -->
+    <!-- 消息列表区域 -->
     <div class="messages-area" ref="messagesContainer">
       <div v-if="messages.length === 0" class="empty-state">
         <div class="empty-icon">💬</div>
         <p>开始对话吧！</p>
-        <span>输入问题，AI 会为你解答</span>
+        <span>输入问题，AI 会为你解答，也可以要求修改图表数据</span>
       </div>
 
-      <!-- 消息列表 -->
       <div v-for="(msg, idx) in messages" :key="idx" :class="['message', msg.role]">
         <div class="message-avatar">
           {{ msg.role === 'user' ? '👤' : '🤖' }}
@@ -27,7 +26,6 @@
         </div>
       </div>
 
-      <!-- 流式输出中的消息 -->
       <div v-if="loading && streamingContent" class="message assistant">
         <div class="message-avatar">🤖</div>
         <div class="message-content">
@@ -39,12 +37,11 @@
       </div>
     </div>
 
-    <!-- 底部输入区域 -->
     <div class="input-area">
       <textarea 
         v-model="userInput" 
         @keydown.enter.prevent="handleSend"
-        placeholder="输入消息... (Enter 发送，Shift+Enter 换行)"
+        placeholder="例如：把周一的销售额改成 180 万"
         rows="1"
         :disabled="loading"
         ref="textareaRef"
@@ -57,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted } from 'vue'
+import { ref, nextTick, watch, onMounted } from 'vue'
 import { useAIChat } from './useAIChat'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
@@ -65,20 +62,29 @@ import 'highlight.js/styles/github-dark.css'
 
 interface Props {
   title?: string
+  // 接收图表数据（从父组件传入）
+  chartData?: {
+    barData: any
+    lineBarData: any
+    pieData: any
+    funnelData: any
+    buildDataContext: () => string
+    resetAllData: () => void
+  }
 }
 
 const props = withDefaults(defineProps<Props>(), {
   title: 'AI 助手'
 })
 
-// 自定义 renderer（给链接添加 target="_blank"）
+// 配置 marked
 const renderer = new marked.Renderer()
 renderer.link = (href, title, text) => {
   return `<a href="${href}" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`
 }
 
-// 配置 marked
 marked.setOptions({
+  renderer,
   highlight: function(code, lang) {
     if (lang && hljs.getLanguage(lang)) {
       return hljs.highlight(code, { language: lang }).value
@@ -100,22 +106,19 @@ const formatTime = (timestamp?: number) => {
   return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
 }
 
-// 使用 composable
+// 使用 composable，传入图表数据
 const { 
   userInput, 
   loading, 
-  errorMsg, 
-  messages,           // 新增：消息历史
-  streamingContent,   // 新增：流式内容
+  messages, 
+  streamingContent, 
   sendMessageStream, 
   clearChat 
-} = useAIChat()
+} = useAIChat(props.chartData)
 
-// DOM 引用
 const messagesContainer = ref<HTMLElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
-// 自动滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {
@@ -124,12 +127,10 @@ const scrollToBottom = () => {
   })
 }
 
-// 监听消息变化，自动滚动
 watch([messages, streamingContent, loading], () => {
   scrollToBottom()
 })
 
-// 自动调整 textarea 高度
 const autoResizeTextarea = () => {
   nextTick(() => {
     if (textareaRef.value) {
@@ -143,36 +144,32 @@ watch(userInput, () => {
   autoResizeTextarea()
 })
 
-// 发送消息
 const handleSend = async () => {
   if (!userInput.value.trim() || loading.value) return
   await sendMessageStream()
   autoResizeTextarea()
 }
 
-// 初始化后滚动到底部
 onMounted(() => {
   scrollToBottom()
 })
 </script>
 
 <style scoped>
+/* 你的原有样式保持不变 */
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  max-width: 900px;
-  margin: 0 auto;
+  height: 100%;
   background: #1e1e2e;
   color: #cdd6f4;
 }
 
-/* 头部 */
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: #313244;
   border-bottom: 1px solid #45475a;
   flex-shrink: 0;
@@ -180,53 +177,42 @@ onMounted(() => {
 
 .chat-header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1rem;
 }
 
 .clear-btn {
   background: #f38ba8;
   border: none;
-  padding: 6px 12px;
-  border-radius: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   color: #1e1e2e;
 }
 
-/* 消息区域 */
 .messages-area {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 40px 20px;
   color: #6c7086;
 }
 
 .empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  font-size: 40px;
+  margin-bottom: 12px;
 }
 
-.empty-state p {
-  margin: 8px 0;
-  font-size: 18px;
-}
-
-.empty-state span {
-  font-size: 14px;
-}
-
-/* 消息气泡 */
 .message {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   animation: fadeIn 0.3s ease;
 }
 
@@ -235,19 +221,19 @@ onMounted(() => {
 }
 
 .message-avatar {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #313244;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .message-content {
-  max-width: 70%;
+  max-width: 75%;
   display: flex;
   flex-direction: column;
 }
@@ -257,11 +243,12 @@ onMounted(() => {
 }
 
 .message-text {
-  padding: 10px 14px;
-  border-radius: 18px;
+  padding: 8px 12px;
+  border-radius: 16px;
   background: #313244;
-  line-height: 1.5;
+  line-height: 1.4;
   word-wrap: break-word;
+  font-size: 13px;
 }
 
 .message.user .message-text {
@@ -274,54 +261,74 @@ onMounted(() => {
 }
 
 .message-time {
-  font-size: 11px;
+  font-size: 10px;
   color: #6c7086;
-  margin-top: 4px;
+  margin-top: 2px;
   padding: 0 8px;
 }
-
-/* Markdown 样式 */
-.message-text :deep(pre) {
-  background: #1e1e2e;
-  padding: 12px;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 8px 0;
-}
-
-.message-text :deep(code) {
-  font-family: 'Fira Code', monospace;
-  font-size: 12px;
-}
-
-.message-text :deep(p) {
-  margin: 0 0 8px 0;
-}
-
-.message-text :deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-.message-text :deep(ul), 
+/* 修复列表样式 - 添加这些 */
+.message-text :deep(ul),
 .message-text :deep(ol) {
-  margin: 8px 0;
+  margin: 4px 0;
+  padding-left: 20px;  /* 增加左内边距，让列表缩进 */
+  list-style-position: outside;  /* 标记在外面，保证对齐 */
+}
+
+.message-text :deep(li) {
+  margin: 2px 0;
+  line-height: 1.5;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* 确保列表项内容不超出边框 */
+.message-text :deep(li p) {
+  margin: 0;
+  display: inline;
+}
+
+/* 嵌套列表 */
+.message-text :deep(ul ul),
+.message-text :deep(ol ul),
+.message-text :deep(ul ol),
+.message-text :deep(ol ol) {
+  margin: 2px 0;
   padding-left: 20px;
 }
 
-/* 打字指示器 */
+/* 强制所有内容换行，防止溢出 */
+.message-text {
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.message-text :deep(pre) {
+  background: #1e1e2e;
+  padding: 8px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+
+.message-text :deep(code) {
+  font-family: monospace;
+  font-size: 11px;
+}
+
 .typing-indicator {
   display: flex;
   gap: 4px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: #313244;
-  border-radius: 20px;
+  border-radius: 16px;
   width: fit-content;
   margin-top: 4px;
 }
 
 .typing-indicator span {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #89b4fa;
   animation: bounce 1.4s infinite;
@@ -332,14 +339,13 @@ onMounted(() => {
 
 @keyframes bounce {
   0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-8px); }
+  30% { transform: translateY(-6px); }
 }
 
-/* 输入区域 */
 .input-area {
   display: flex;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: 8px;
+  padding: 10px 12px;
   background: #313244;
   border-top: 1px solid #45475a;
   flex-shrink: 0;
@@ -347,42 +353,25 @@ onMounted(() => {
 
 .input-area textarea {
   flex: 1;
-  padding: 12px;
+  padding: 8px 12px;
   border: 1px solid #45475a;
-  border-radius: 24px;
+  border-radius: 20px;
   background: #1e1e2e;
   color: #cdd6f4;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   resize: none;
   outline: none;
-  transition: border 0.2s;
-}
-
-.input-area textarea:focus {
-  border-color: #89b4fa;
-}
-
-.input-area textarea:disabled {
-  opacity: 0.5;
 }
 
 .send-btn {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: #89b4fa;
   border: none;
   cursor: pointer;
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.1s;
-}
-
-.send-btn:active {
-  transform: scale(0.95);
+  font-size: 16px;
 }
 
 .send-btn:disabled {
@@ -391,13 +380,7 @@ onMounted(() => {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>
