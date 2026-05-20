@@ -1,14 +1,10 @@
 <template>
   <div class="chat-container">
-    <!-- 头部 -->
     <div class="chat-header">
       <h1>{{ title }}</h1>
-      <button @click="clearChat" class="clear-btn" title="清空对话">
-        🗑️ 清空
-      </button>
+      <button @click="clearChat" class="clear-btn" title="清空对话">🗑️ 清空</button>
     </div>
 
-    <!-- 消息列表区域 -->
     <div class="messages-area" ref="messagesContainer">
       <div v-if="messages.length === 0" class="empty-state">
         <div class="empty-icon">💬</div>
@@ -17,9 +13,7 @@
       </div>
 
       <div v-for="(msg, idx) in messages" :key="idx" :class="['message', msg.role]">
-        <div class="message-avatar">
-          {{ msg.role === 'user' ? '👤' : '🤖' }}
-        </div>
+        <div class="message-avatar">{{ msg.role === 'user' ? '👤' : '🤖' }}</div>
         <div class="message-content">
           <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
           <div class="message-time">{{ formatTime(msg.timestamp) }}</div>
@@ -30,25 +24,14 @@
         <div class="message-avatar">🤖</div>
         <div class="message-content">
           <div class="message-text streaming" v-html="renderMarkdown(streamingContent)"></div>
-          <div class="typing-indicator">
-            <span></span><span></span><span></span>
-          </div>
+          <div class="typing-indicator"><span></span><span></span><span></span></div>
         </div>
       </div>
     </div>
 
     <div class="input-area">
-      <textarea 
-        v-model="userInput" 
-        @keydown.enter.prevent="handleSend"
-        placeholder="例如：把周一的销售额改成 180 万"
-        rows="1"
-        :disabled="loading"
-        ref="textareaRef"
-      ></textarea>
-      <button @click="handleSend" :disabled="loading || !userInput.trim()" class="send-btn">
-        {{ loading ? '⏳' : '📤' }}
-      </button>
+      <textarea v-model="userInput" @keydown.enter.prevent="handleSend" placeholder="例如：把周一的销售额改成 180 万" rows="1" :disabled="loading" ref="textareaRef"></textarea>
+      <button @click="handleSend" :disabled="loading || !userInput.trim()" class="send-btn">{{ loading ? '⏳' : '📤' }}</button>
     </div>
   </div>
 </template>
@@ -62,7 +45,6 @@ import 'highlight.js/styles/github-dark.css'
 
 interface Props {
   title?: string
-  // 接收图表数据（从父组件传入）
   chartData?: {
     barData: any
     lineBarData: any
@@ -73,96 +55,43 @@ interface Props {
   }
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  title: 'AI 助手'
-})
+const props = withDefaults(defineProps<Props>(), { title: 'AI 助手' })
 
-// 配置 marked
 const renderer = new marked.Renderer()
-renderer.link = (href, title, text) => {
-  return `<a href="${href}" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`
-}
+renderer.link = (href, title, text) => `<a href="${href}" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`
 
 marked.setOptions({
   renderer,
-  highlight: function(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      return hljs.highlight(code, { language: lang }).value
-    }
-    return hljs.highlightAuto(code).value
-  },
+  highlight: (code, lang) => lang && hljs.getLanguage(lang) ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value,
   breaks: true,
   gfm: true
 })
 
-const renderMarkdown = (content: string) => {
-  if (!content) return ''
-  return marked.parse(content)
-}
+const renderMarkdown = (content: string) => content ? marked.parse(content) : ''
+const formatTime = (timestamp?: number) => timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
-const formatTime = (timestamp?: number) => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-}
-
-// 使用 composable，传入图表数据
-const { 
-  userInput, 
-  loading, 
-  messages, 
-  streamingContent, 
-  sendMessageStream, 
-  clearChat 
-} = useAIChat(props.chartData)
+const { userInput, loading, messages, streamingContent, sendMessageStream, clearChat } = useAIChat(props.chartData)
 
 const messagesContainer = ref<HTMLElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
-}
+const scrollToBottom = () => nextTick(() => { if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight })
+watch([messages, streamingContent, loading], () => scrollToBottom())
 
-watch([messages, streamingContent, loading], () => {
-  scrollToBottom()
-})
+const autoResizeTextarea = () => nextTick(() => { if (textareaRef.value) { textareaRef.value.style.height = 'auto'; textareaRef.value.style.height = Math.min(textareaRef.value.scrollHeight, 120) + 'px' } })
+watch(userInput, () => autoResizeTextarea())
 
-const autoResizeTextarea = () => {
-  nextTick(() => {
-    if (textareaRef.value) {
-      textareaRef.value.style.height = 'auto'
-      textareaRef.value.style.height = Math.min(textareaRef.value.scrollHeight, 120) + 'px'
-    }
-  })
-}
-
-watch(userInput, () => {
-  autoResizeTextarea()
-})
-
-const handleSend = async () => {
-  if (!userInput.value.trim() || loading.value) return
-  await sendMessageStream()
-  autoResizeTextarea()
-}
-
-onMounted(() => {
-  scrollToBottom()
-})
+const handleSend = async () => { if (!userInput.value.trim() || loading.value) return; await sendMessageStream(); autoResizeTextarea() }
+onMounted(() => scrollToBottom())
 </script>
 
 <style scoped>
-/* 你的原有样式保持不变 */
 .chat-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .chat-header {
@@ -170,24 +99,25 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background: #313244;
-  border-bottom: 1px solid #45475a;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
 .chat-header h1 {
   margin: 0;
   font-size: 1rem;
+  color: var(--text-primary);
 }
 
 .clear-btn {
-  background: #f38ba8;
+  background: var(--danger-color);
   border: none;
   padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
-  color: #1e1e2e;
+  color: white;
 }
 
 .messages-area {
@@ -202,7 +132,7 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: #6c7086;
+  color: var(--text-secondary);
 }
 
 .empty-icon {
@@ -224,12 +154,13 @@ onMounted(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #313244;
+  background: var(--bg-card);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   font-size: 14px;
+  color: var(--text-primary);
 }
 
 .message-content {
@@ -245,33 +176,34 @@ onMounted(() => {
 .message-text {
   padding: 8px 12px;
   border-radius: 16px;
-  background: #313244;
+  background: var(--message-assistant-bg);
+  color: var(--message-assistant-text);
   line-height: 1.4;
   word-wrap: break-word;
   font-size: 13px;
 }
 
 .message.user .message-text {
-  background: #89b4fa;
-  color: #1e1e2e;
+  background: var(--message-user-bg);
+  color: var(--message-user-text);
 }
 
 .message-text.streaming {
-  border-left: 3px solid #89b4fa;
+  border-left: 3px solid var(--accent-color);
 }
 
 .message-time {
   font-size: 10px;
-  color: #6c7086;
+  color: var(--text-secondary);
   margin-top: 2px;
   padding: 0 8px;
 }
-/* 修复列表样式 - 添加这些 */
+
 .message-text :deep(ul),
 .message-text :deep(ol) {
   margin: 4px 0;
-  padding-left: 20px;  /* 增加左内边距，让列表缩进 */
-  list-style-position: outside;  /* 标记在外面，保证对齐 */
+  padding-left: 20px;
+  list-style-position: outside;
 }
 
 .message-text :deep(li) {
@@ -281,13 +213,11 @@ onMounted(() => {
   white-space: normal;
 }
 
-/* 确保列表项内容不超出边框 */
 .message-text :deep(li p) {
   margin: 0;
   display: inline;
 }
 
-/* 嵌套列表 */
 .message-text :deep(ul ul),
 .message-text :deep(ol ul),
 .message-text :deep(ul ol),
@@ -296,15 +226,15 @@ onMounted(() => {
   padding-left: 20px;
 }
 
-/* 强制所有内容换行，防止溢出 */
 .message-text {
   word-wrap: break-word;
   word-break: break-word;
   white-space: normal;
   overflow-wrap: break-word;
 }
+
 .message-text :deep(pre) {
-  background: #1e1e2e;
+  background: var(--bg-primary);
   padding: 8px;
   border-radius: 6px;
   overflow-x: auto;
@@ -314,13 +244,14 @@ onMounted(() => {
 .message-text :deep(code) {
   font-family: monospace;
   font-size: 11px;
+  color: var(--text-primary);
 }
 
 .typing-indicator {
   display: flex;
   gap: 4px;
   padding: 6px 10px;
-  background: #313244;
+  background: var(--bg-card);
   border-radius: 16px;
   width: fit-content;
   margin-top: 4px;
@@ -330,7 +261,7 @@ onMounted(() => {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #89b4fa;
+  background: var(--accent-color);
   animation: bounce 1.4s infinite;
 }
 
@@ -346,32 +277,37 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   padding: 10px 12px;
-  background: #313244;
-  border-top: 1px solid #45475a;
+  background: var(--bg-header);
+  border-top: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
 .input-area textarea {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid #45475a;
+  border: 1px solid var(--border-color);
   border-radius: 20px;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: var(--bg-input);
+  color: var(--text-primary);
   font-family: inherit;
   font-size: 13px;
   resize: none;
   outline: none;
 }
 
+.input-area textarea:focus {
+  border-color: var(--accent-color);
+}
+
 .send-btn {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #89b4fa;
+  background: var(--accent-color);
   border: none;
   cursor: pointer;
   font-size: 16px;
+  color: white;
 }
 
 .send-btn:disabled {

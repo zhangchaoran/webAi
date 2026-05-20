@@ -1,7 +1,12 @@
 <template>
   <div class="dashboard">
+    <!-- 主题切换按钮 -->
+    <div class="theme-header">
+      <h2>📊 数据看板</h2>
+      <ThemeButtons />
+    </div>
+    
     <div class="dashboard-layout">
-      
       <div class="left-side">
         <div class="chart-card">
           <BarChart :categories="barData.categories" :values="barData.values" />
@@ -11,7 +16,6 @@
         </div>
       </div>
 
-      <!-- 中间：AI 助手，传入图表数据 -->
       <div class="center-ai">
         <AIAssistant :chart-data="aiChartData" />
       </div>
@@ -24,23 +28,24 @@
           <FunnelChart :data="funnelData" />
         </div>
       </div>
-
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import BarChart from '@/components/common/charts/BarChart.vue'
 import LineBarChart from '@/components/common/charts/LineBarChart.vue'
 import PieChart from '@/components/common/charts/PieChart.vue'
 import FunnelChart from '@/components/common/charts/FunnelChart.vue'
 import AIAssistant from '@/components/common/AIAssistant/index.vue'
+import ThemeButtons from '@/components/ThemeButtons.vue'
 import { useChartData } from '@/components/common/hooks/useChartData'
+import { useThemeStore } from '@/stores/theme'
 
+const themeStore = useThemeStore()
 const { barData, lineBarData, pieData, funnelData, buildDataContext, resetAllData } = useChartData()
 
-// 组装传给 AI 助手的数据
 const aiChartData = computed(() => ({
   barData,
   lineBarData,
@@ -49,23 +54,49 @@ const aiChartData = computed(() => ({
   buildDataContext,
   resetAllData
 }))
+
+// 监听主题变化，触发 ECharts 重新渲染
+const handleThemeChange = (event: CustomEvent) => {
+  // 重新触发图表渲染
+  window.dispatchEvent(new CustomEvent('chart-refresh'))
+}
+
+onMounted(() => {
+  window.addEventListener('theme-change', handleThemeChange as EventListener)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('theme-change', handleThemeChange as EventListener)
+})
 </script>
 
 <style scoped>
-/* 你的原有样式保持不变 */
 .dashboard {
   width: 100%;
   height: 100vh;
   padding: 1rem;
-  background: #f0f2f5;
+  background: var(--bg-primary);
   box-sizing: border-box;
+}
+
+.theme-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0 0.5rem;
+}
+
+.theme-header h2 {
+  margin: 0;
+  color: var(--text-primary);
 }
 
 .dashboard-layout {
   display: flex;
   gap: 1rem;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 60px);
 }
 
 .left-side, .right-side {
@@ -78,21 +109,22 @@ const aiChartData = computed(() => ({
 
 .center-ai {
   flex: 3;
-  background: #1e1e2e;
+  background: var(--bg-secondary);
   border-radius: 1rem;
   overflow: hidden;
   box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
 }
 
 .chart-card {
-  background: #fff;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 1rem;
-  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.05);
   overflow: hidden;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  transition: all 0.3s ease;
 }
 
 @media (max-width: 768px) {

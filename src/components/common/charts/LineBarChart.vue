@@ -23,6 +23,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import * as echarts from 'echarts'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 interface Props {
   categories: string[]
@@ -31,23 +32,24 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
 
-const initChart = () => {
-  if (!chartRef.value) return
-  chartInstance = echarts.init(chartRef.value)
+const { getThemeColors, initChartListeners } = useChartTheme({ value: chartInstance })
+
+const updateChartOptions = () => {
+  if (!chartInstance) return
+  const colors = getThemeColors()
   
-  const option = {
+  chartInstance.setOption({
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
-      backgroundColor: 'rgba(255,255,255,0.95)',
-      borderColor: '#e0e0e0',
+      backgroundColor: colors.bgCard,
+      borderColor: colors.borderColor,
       borderWidth: 1,
       borderRadius: 8,
-      textStyle: { color: '#333', fontSize: 12 }
+      textStyle: { color: colors.textPrimary, fontSize: 12 }
     },
     legend: { show: false },
     grid: {
@@ -60,26 +62,23 @@ const initChart = () => {
     xAxis: {
       type: 'category',
       data: props.categories,
-      axisLabel: {
-        fontSize: 11,
-        color: '#666'
-      },
-      axisLine: { lineStyle: { color: '#e0e0e0' } },
+      axisLabel: { fontSize: 11, color: colors.textSecondary },
+      axisLine: { lineStyle: { color: colors.borderColor } },
       axisTick: { show: false }
     },
     yAxis: [
       {
         type: 'value',
         name: '销量 (万件)',
-        nameTextStyle: { fontSize: 11, color: '#888' },
-        axisLabel: { fontSize: 11, color: '#666' },
-        splitLine: { lineStyle: { color: '#f0f0f0', type: 'dashed' } }
+        nameTextStyle: { fontSize: 11, color: colors.textSecondary },
+        axisLabel: { fontSize: 11, color: colors.textSecondary },
+        splitLine: { lineStyle: { color: colors.borderColor, type: 'dashed' } }
       },
       {
         type: 'value',
         name: '增长率 (%)',
-        nameTextStyle: { fontSize: 11, color: '#888' },
-        axisLabel: { fontSize: 11, color: '#666' },
+        nameTextStyle: { fontSize: 11, color: colors.textSecondary },
+        axisLabel: { fontSize: 11, color: colors.textSecondary },
         splitLine: { show: false }
       }
     ],
@@ -94,18 +93,18 @@ const initChart = () => {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: '#89b4fa' },
-              { offset: 1, color: '#5c8fd6' }
+              { offset: 0, color: colors.chartColor1 },
+              { offset: 1, color: colors.chartColor2 }
             ]
           },
           borderRadius: [6, 6, 0, 0],
-          shadowColor: 'rgba(137, 180, 250, 0.3)',
+          shadowColor: `${colors.chartColor1}4D`,
           shadowBlur: 8
         },
         label: {
           show: true,
           position: 'top',
-          color: '#5c8fd6',
+          color: colors.chartColor1,
           fontWeight: 'bold',
           fontSize: 11,
           formatter: '{c}'
@@ -120,15 +119,14 @@ const initChart = () => {
         symbol: 'circle',
         symbolSize: 8,
         lineStyle: {
-          color: '#f38ba8',
+          color: colors.chartColor3,
           width: 3,
-          shadowColor: 'rgba(243, 139, 168, 0.3)',
-          shadowBlur: 6,
-          type: 'solid'
+          shadowColor: `${colors.chartColor3}4D`,
+          shadowBlur: 6
         },
         itemStyle: {
-          color: '#f38ba8',
-          borderColor: '#fff',
+          color: colors.chartColor3,
+          borderColor: colors.bgCard,
           borderWidth: 2
         },
         areaStyle: {
@@ -136,27 +134,30 @@ const initChart = () => {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(243, 139, 168, 0.2)' },
-              { offset: 1, color: 'rgba(243, 139, 168, 0.02)' }
+              { offset: 0, color: `${colors.chartColor3}33` },
+              { offset: 1, color: `${colors.chartColor3}05` }
             ]
           }
         },
         label: {
           show: true,
           position: 'top',
-          color: '#f38ba8',
+          color: colors.chartColor3,
           fontWeight: 'bold',
           fontSize: 11,
           formatter: '{c}%'
         }
       }
     ]
-  }
-  
-  chartInstance.setOption(option)
+  }, { notMerge: false })
 }
 
-// 监听数据变化
+const initChart = () => {
+  if (!chartRef.value) return
+  chartInstance = echarts.init(chartRef.value)
+  updateChartOptions()
+}
+
 watch(() => [props.sales, props.growth], () => {
   if (chartInstance) {
     chartInstance.setOption({
@@ -168,22 +169,9 @@ watch(() => [props.sales, props.growth], () => {
   }
 }, { deep: true })
 
-// 监听容器大小变化
-const handleResize = () => {
-  chartInstance?.resize()
-}
-
 onMounted(() => {
   initChart()
-  window.addEventListener('resize', handleResize)
-})
-
-// 组件卸载时清理
-onMounted(() => {
-  return () => {
-    window.removeEventListener('resize', handleResize)
-    chartInstance?.dispose()
-  }
+  initChartListeners(updateChartOptions)
 })
 </script>
 
@@ -193,7 +181,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -203,8 +191,8 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px 0 16px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .title-section {
@@ -220,7 +208,7 @@ onMounted(() => {
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
 }
 
 .legend-section {
@@ -238,20 +226,20 @@ onMounted(() => {
 .legend-dot.bar {
   width: 10px;
   height: 10px;
-  background: linear-gradient(135deg, #89b4fa, #5c8fd6);
+  background: linear-gradient(135deg, var(--chart-color-1), var(--chart-color-2));
   border-radius: 2px;
 }
 
 .legend-dot.line {
   width: 10px;
   height: 10px;
-  background: #f38ba8;
+  background: var(--chart-color-3);
   border-radius: 50%;
 }
 
 .legend-text {
   font-size: 11px;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .chart {

@@ -19,6 +19,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import * as echarts from 'echarts'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 interface DataItem {
   name: string
@@ -31,68 +32,70 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
+
+const { getThemeColors, initChartListeners } = useChartTheme({ value: chartInstance })
+
+const updateChartOptions = () => {
+  if (!chartInstance) return
+  const colors = getThemeColors()
+  
+  chartInstance.setOption({
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: colors.bgCard,
+      borderColor: colors.borderColor,
+      borderWidth: 1,
+      borderRadius: 8,
+      textStyle: { color: colors.textPrimary, fontSize: 12 },
+      formatter: '{b}: {d}% ({c})'
+    },
+    legend: { show: false },
+    series: [{
+      name: '销售占比',
+      type: 'pie',
+      radius: ['45%', '70%'],
+      center: ['50%', '55%'],
+      avoidLabelOverlap: false,
+      itemStyle: {
+        borderRadius: 8,
+        borderColor: colors.bgCard,
+        borderWidth: 2
+      },
+      label: {
+        show: true,
+        position: 'outside',
+        formatter: '{b}: {d}%',
+        color: colors.textPrimary,
+        fontSize: 11,
+        fontWeight: 'normal',
+        lineHeight: 18
+      },
+      labelLine: {
+        length: 10,
+        length2: 8,
+        smooth: true
+      },
+      emphasis: {
+        scale: true,
+        label: { show: true, fontWeight: 'bold' }
+      },
+      data: props.data.map(item => ({
+        name: item.name,
+        value: item.value,
+        itemStyle: { color: item.color }
+      }))
+    }]
+  }, { notMerge: false })
+}
 
 const initChart = () => {
   if (!chartRef.value) return
   chartInstance = echarts.init(chartRef.value)
-  
-  const option = {
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: 'rgba(255,255,255,0.95)',
-      borderColor: '#e0e0e0',
-      borderWidth: 1,
-      borderRadius: 8,
-      textStyle: { color: '#333', fontSize: 12 },
-      formatter: '{b}: {d}% ({c})'
-    },
-    legend: { show: false },  // 使用自定义图例
-    series: [
-      {
-        name: '销售占比',
-        type: 'pie',
-        radius: ['45%', '70%'],  // 环形图效果
-        center: ['50%', '55%'],
-        avoidLabelOverlap: false,
-        itemStyle: {
-          borderRadius: 8,
-          borderColor: '#fff',
-          borderWidth: 2
-        },
-        label: {
-          show: true,
-          position: 'outside',
-          formatter: '{b}: {d}%',
-          color: '#333',
-          fontSize: 11,
-          fontWeight: 'normal',
-          lineHeight: 18
-        },
-        labelLine: {
-          length: 10,
-          length2: 8,
-          smooth: true
-        },
-        emphasis: {
-          scale: true,
-          label: { show: true, fontWeight: 'bold' }
-        },
-        data: props.data.map(item => ({
-          name: item.name,
-          value: item.value,
-          itemStyle: { color: item.color }
-        }))
-      }
-    ]
-  }
-  
-  chartInstance.setOption(option)
+  updateChartOptions()
 }
 
-// 监听数据变化
 watch(() => props.data, () => {
   if (chartInstance) {
     chartInstance.setOption({
@@ -107,22 +110,9 @@ watch(() => props.data, () => {
   }
 }, { deep: true })
 
-// 监听容器大小变化
-const handleResize = () => {
-  chartInstance?.resize()
-}
-
 onMounted(() => {
   initChart()
-  window.addEventListener('resize', handleResize)
-})
-
-// 组件卸载时清理
-onMounted(() => {
-  return () => {
-    window.removeEventListener('resize', handleResize)
-    chartInstance?.dispose()
-  }
+  initChartListeners(updateChartOptions)
 })
 </script>
 
@@ -132,7 +122,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -142,8 +132,8 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px 0 16px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .title-section {
@@ -159,7 +149,7 @@ onMounted(() => {
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
 }
 
 .legend-section {
@@ -184,7 +174,7 @@ onMounted(() => {
 
 .legend-text {
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .chart {

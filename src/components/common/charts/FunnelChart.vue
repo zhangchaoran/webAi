@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import * as echarts from 'echarts'
+import { useChartTheme } from '@/composables/useChartTheme'
 
 interface FunnelData {
   name: string
@@ -28,9 +29,10 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
+
+const { getThemeColors, initChartListeners } = useChartTheme({ value: chartInstance })
 
 // 计算转化率
 const calculateConversionRate = (data: FunnelData[]) => {
@@ -41,126 +43,88 @@ const calculateConversionRate = (data: FunnelData[]) => {
   }))
 }
 
+const updateChartOptions = () => {
+  if (!chartInstance) return
+  const colors = getThemeColors()
+  const dataWithRate = calculateConversionRate(props.data)
+  
+  chartInstance.setOption({
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: colors.bgCard,
+      borderColor: colors.borderColor,
+      borderWidth: 1,
+      borderRadius: 8,
+      textStyle: { color: colors.textPrimary, fontSize: 12 },
+      formatter: (params: any) => {
+        const data = dataWithRate[params.dataIndex]
+        return `<strong>${data.name}</strong><br/>数量: ${data.value}<br/>转化率: ${data.rate}%`
+      }
+    },
+    series: [{
+      type: 'funnel',
+      data: props.data,
+      sort: 'descending',
+      gap: 4,
+      width: '70%',
+      height: '80%',
+      left: '15%',
+      top: '10%',
+      bottom: '10%',
+      funnelAlign: 'center',
+      label: {
+        show: true,
+        position: 'inside',
+        formatter: (params: any) => {
+          const rate = dataWithRate[params.dataIndex].rate
+          return `${params.name}\n${params.value} (${rate}%)`
+        },
+        fontSize: 11,
+        fontWeight: 'bold',
+        color: '#fff',
+        lineHeight: 18
+      },
+      itemStyle: {
+        borderColor: colors.bgCard,
+        borderWidth: 2,
+        borderRadius: 8,
+        shadowBlur: 8,
+        shadowColor: 'rgba(0, 0, 0, 0.1)',
+        color: {
+          type: 'linear',
+          x: 0, y: 0, x2: 1, y2: 1,
+          colorStops: [
+            { offset: 0, color: colors.chartColor1 },
+            { offset: 0.5, color: colors.chartColor2 },
+            { offset: 1, color: colors.chartColor3 }
+          ]
+        }
+      },
+      emphasis: {
+        label: { fontSize: 12, fontWeight: 'bold' },
+        itemStyle: {
+          shadowBlur: 12,
+          shadowColor: `${colors.chartColor1}80`,
+          transform: 'scale(1.02)'
+        }
+      }
+    }]
+  }, { notMerge: false })
+}
+
 const initChart = () => {
   if (!chartRef.value) return
   chartInstance = echarts.init(chartRef.value)
-  
-  const dataWithRate = calculateConversionRate(props.data)
-  
-  const option = {
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: 'rgba(255,255,255,0.95)',
-      borderColor: '#e0e0e0',
-      borderWidth: 1,
-      borderRadius: 8,
-      textStyle: { color: '#333', fontSize: 12 },
-      formatter: (params: any) => {
-        const data = dataWithRate[params.dataIndex]
-        return `
-          <strong>${data.name}</strong><br/>
-          数量: ${data.value}<br/>
-          转化率: ${data.rate}%
-        `
-      }
-    },
-    series: [
-      {
-        type: 'funnel',
-        data: props.data,
-        sort: 'descending',
-        gap: 4,
-        width: '70%',
-        height: '80%',
-        left: '15%',
-        top: '10%',
-        bottom: '10%',
-        funnelAlign: 'center',
-        label: {
-          show: true,
-          position: 'inside',
-          formatter: (params: any) => {
-            const rate = dataWithRate[params.dataIndex].rate
-            return `${params.name}\n${params.value} (${rate}%)`
-          },
-          fontSize: 11,
-          fontWeight: 'bold',
-          color: '#fff',
-          lineHeight: 18
-        },
-        itemStyle: {
-          borderColor: '#fff',
-          borderWidth: 2,
-          borderRadius: 8,
-          shadowBlur: 8,
-          shadowColor: 'rgba(0, 0, 0, 0.1)',
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 1, y2: 1,
-            colorStops: [
-              { offset: 0, color: '#42b883' },
-              { offset: 0.5, color: '#89b4fa' },
-              { offset: 1, color: '#5c8fd6' }
-            ]
-          }
-        },
-        emphasis: {
-          label: {
-            fontSize: 12,
-            fontWeight: 'bold'
-          },
-          itemStyle: {
-            shadowBlur: 12,
-            shadowColor: 'rgba(66, 184, 131, 0.5)',
-            transform: 'scale(1.02)'
-          }
-        }
-      }
-    ],
-    graphic: [
-      {
-        type: 'text',
-        left: 'center',
-        top: 5,
-        style: {
-          text: '浏览 → 购买 转化路径',
-          fill: '#888',
-          fontSize: 11
-        },
-        invisible: true
-      }
-    ]
-  }
-  
-  chartInstance.setOption(option)
+  updateChartOptions()
 }
 
-// 监听数据变化
 watch(() => props.data, () => {
-  if (chartInstance) {
-    const dataWithRate = calculateConversionRate(props.data)
-    chartInstance.setOption({
-      series: [{ data: props.data }]
-    })
-  }
+  if (chartInstance) updateChartOptions()
 }, { deep: true })
-
-// 监听容器大小变化
-const handleResize = () => {
-  chartInstance?.resize()
-}
 
 onMounted(() => {
   initChart()
-  window.addEventListener('resize', handleResize)
-})
-
-// 组件卸载时清理
-onMounted(() => {
-  return () => {
-    window.removeEventListener('resize', handleResize)
-    chartInstance?.dispose()
-  }
+  initChartListeners(updateChartOptions)
 })
 </script>
 
@@ -170,7 +134,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -180,8 +144,8 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px 0 16px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .title-section {
@@ -197,7 +161,7 @@ onMounted(() => {
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
 }
 
 .legend-section {
@@ -209,13 +173,13 @@ onMounted(() => {
 .legend-dot {
   width: 10px;
   height: 10px;
-  background: linear-gradient(135deg, #42b883, #5c8fd6);
+  background: linear-gradient(135deg, var(--chart-color-1), var(--chart-color-3));
   border-radius: 2px;
 }
 
 .legend-text {
   font-size: 11px;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .chart {
